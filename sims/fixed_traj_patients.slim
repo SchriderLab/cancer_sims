@@ -14,11 +14,9 @@ initialize() {
 	//defineConstant('job_id', 2);
 	//defineConstant('param_id', 8);
 	//defineConstant('second_strike_lag', 7);
-	//defineConstant('drug_efficacy', 0.9);
 	//defineConstant('dose_drug1_combo', 0.40);
  	//defineConstant('cross_resistance', 0.0); 
  	//defineConstant('initial_seed', 1088929736);
-	//defineConstant('mono_dose', 0.75);
 
 	setSeed(initial_seed);
 	mono_dose = runif(1, 0.6, 0.8);
@@ -182,7 +180,9 @@ function (void)end_simulation(void){
 	community.registerEarlyEvent(NULL, "{check_population();}", sim.cycle + 1, sim.cycle + 1);
 	log_headers = c('parm_id', 'job_id', 'cycle', 'phase', 'freq_m' + c(1:length(sim.mutationTypes)), 'freq_all_muts', 
     'base_mut_rate', 'second_treatment_lag', 'fitness_cost', 'cross_resistance', 'drug_1_combo_dose', 'drug_2_combo_dose', 'dose_drug_1_mono', 'dose_drug_2_mono', 'expansion_time', 'treatment_time', 'current_drug', 'N', 'death_count', 'Q', 'replicate', 'initial_seed', 'treatment_seed', 'sim_stage'); 
-	
+	defineGlobal('current_phase', 'expansion');
+    defineGlobal('current_drug', 0);
+    defineConstant('treatment_seed', create_treatment_seed());
 	if (!fileExists(log_file)){
 		to_write = paste(log_headers, sep=',');
 		writeFile(log_file, to_write);
