@@ -1,0 +1,205 @@
+initialize() {
+			
+	initializeSLiMModelType("nonWF");
+	//defineConstant("chr_len", 1e3);
+	// Scaling Factor
+	defineConstant('Q', 1000);
+	
+	// Command-line Arguments:
+	defineConstant('fitness_cost', 0.00);
+
+	// Command-line Arguments:
+    //defineConstant('store_dir', '/nas/longleaf/home/amjada/Desktop/eff_test/cancer_rescue/');
+    defineConstant('base_mut_rate', 1.0e-08);
+	defineConstant('job_id', 1);
+	defineConstant('param_id', 0);
+	defineConstant('second_strike_lag', 7);
+	defineConstant('dose_drug_1_combo', 0.50);
+ 	defineConstant('cross_resistance', 0.0); 
+ 	defineConstant('initial_seed', 1088929736);
+
+	setSeed(initial_seed);
+	mono_dose = runif(1, 0.6, 0.8);
+	defineConstant('dose_drug_1_mono', mono_dose);
+	defineConstant('dose_drug_2_mono', mono_dose);
+	//defineConstant('dose_drug_2_combo', 1-(0.25/(1-combo_dose_drug1)));
+	defineConstant('dose_drug_2_combo', dose_drug_1_combo);
+
+	defineGlobal('dose_drug_1', 0);
+	defineGlobal('dose_drug_2', 0);
+	defineConstant('turn_over_rate', 0.20);
+
+	defineConstant('expansion_time', 20);
+	defineConstant('treatment_time', 400);
+    
+	defineConstant('mut_rate', base_mut_rate*Q);
+	
+	defineGlobal('kill_counter', 0);	
+	defineGlobal('expansion_over', F);	
+	createDirectory(store_dir + '/seed_' + asString(initial_seed));
+	defineGlobal('log_file', store_dir + '/seed_' + asString(initial_seed) + '/log_' + asString(param_id) + '_' + asString(job_id) + '.csv');
+	
+	initializeMutationType("m1", 1.0, "f", 0);
+	initializeMutationType("m2", 1.0, "f", 0);
+	initializeMutationType("m3", 1.0, "f", 0);
+	m1.mutationStackPolicy = "f";
+	m2.mutationStackPolicy = "f";
+	m3.mutationStackPolicy = "f";
+	
+	//initializeGenomicElementType("g1", c(m1, m2, m3), c(0.45, 0.45, 0.1));
+	initializeGenomicElementType("g1", c(m1), c(1));
+	initializeGenomicElementType("g2", c(m2), c(1));
+	initializeGenomicElementType("g3", c(m3), c(1));
+	initializeGenomicElement(g1, 500, 500);
+	initializeGenomicElement(g2, 501, 501);
+	initializeGenomicElement(g3, 502, 502);
+	initializeMutationRate(c(mut_rate, mut_rate/10), c(502, 503));
+	initializeRecombinationRate(0);
+}
+
+reproduction(){    
+	o1 = subpop.addCloned(individual);
+}
+
+fitnessEffect(p1){
+	m1_i = asInteger(individual.countOfMutationsOfType(m1) > 0);
+	m2_i = asInteger(individual.countOfMutationsOfType(m2) > 0);
+	m3_i = asInteger(individual.countOfMutationsOfType(m3) > 0);
+
+	fitness = (1 - dose_drug_1*(1-m1_i)*(1-cross_resistance*m3_i)) *
+				 (1 - dose_drug_2*(1-m2_i)*(1-cross_resistance*m3_i)) * (1-fitness_cost*m1_i) * (1-fitness_cost*m2_i);
+				 
+	return(fitness);
+
+}
+
+
+function (void)write_to_log(string$ sim_stage){
+	
+	neut_counts = 0;
+	mut_counts = rep(0, length(sim.mutationTypes) + 1);
+
+	if (p1.individualCount > 0){	
+		for (ind in p1.individuals){
+			both_muts = T;
+			for (mut_type in sim.mutationTypes[0:(length(sim.mutationTypes)-1)]){
+				if (ind.countOfMutationsOfType(mut_type) > 0){
+					mut_counts[mut_type.id - 1] = mut_counts[mut_type.id - 1] + 1;
+				} else {
+					both_muts = F;
+				}
+			}
+
+			if (both_muts){
+				mut_counts[length(sim.mutationTypes)] = mut_counts[length(sim.mutationTypes)] + 1;
+			}
+			
+			//neut_counts = neut_counts + ind.countOfMutationsOfType(m3);
+
+		}	
+	}
+	
+	mut_freqs = mut_counts / length(p1.individuals);
+	
+	//Write to file
+	count_mat = c(param_id, job_id, sim.cycle, current_phase, mut_freqs, base_mut_rate, second_strike_lag,
+	fitness_cost, cross_resistance, dose_drug_1_combo, dose_drug_2_combo, dose_drug_1_mono, dose_drug_2_mono, expansion_time, treatment_time, current_drug, p1.individualCount, kill_counter, Q, job_id, initial_seed, treatment_seed, sim_stage);
+	to_write = paste(count_mat, sep=',');
+	writeFile(log_file, to_write, append = T); 
+	
+}
+
+function (float)find_m2_freq(void){
+	
+	count = 0;
+	
+	resistance_mut = sim.mutationTypes[current_drug - 1];
+	for (ind in p1.individuals){
+		if (ind.countOfMutationsOfType(resistance_mut) > 0){
+			count = count + 1;
+		}
+	}
+	
+	
+	final_freq = count / length(p1.individuals);
+	
+	return(final_freq);
+
+}
+
+function(void)check_population_end(void){
+	if (length(p1.individuals) > pop_after_expansion){
+		end_simulation();
+	}
+
+}
+
+function(integer$)create_treatment_seed(void){
+	seed_str = asString(initial_seed) + asString(job_id) + asString(asInteger(second_strike_lag));
+	return(asInteger(seed_str));
+}
+
+function (void)check_population(void){
+	if (length(p1.individuals) < (2^expansion_time - 0.10*(2^expansion_time))){
+		community.registerEarlyEvent(NULL, '{check_population();}', sim.cycle + 1, sim.cycle + 1);
+		//community.registerLateEvent(NULL, '{write_to_log();}', sim.cycle, sim.cycle);
+	} else {
+		defineConstant('pop_after_expansion', length(p1.individuals));
+		
+		treatment_end_gen = sim.cycle + treatment_time;
+		defineGlobal('current_phase', 'treatment');
+		if (second_strike_lag == 0){
+			defineGlobal('current_drug', 'both');
+			defineGlobal('dose_drug_1', dose_drug_1_combo);
+			defineGlobal('dose_drug_2', dose_drug_2_combo);
+		} else {
+			defineGlobal('dose_drug_1', dose_drug_1_mono);
+			defineGlobal('current_drug', 1);
+			community.registerEarlyEvent(NULL, '{defineGlobal("current_drug", 2);}', sim.cycle + asInteger(second_strike_lag));
+			community.registerEarlyEvent(NULL, '{defineGlobal("dose_drug_1", 0);}', sim.cycle + asInteger(second_strike_lag));
+			community.registerEarlyEvent(NULL, '{setSeed(treatment_seed);}', sim.cycle + asInteger(second_strike_lag), sim.cycle + asInteger(second_strike_lag));
+			community.registerEarlyEvent(NULL, '{defineGlobal("dose_drug_2", dose_drug_2_mono);}', sim.cycle + asInteger(second_strike_lag));
+		}
+		community.registerLateEvent(NULL, '{end_simulation();}', treatment_end_gen, treatment_end_gen);
+		//community.registerLateEvent(NULL, '{write_to_log();}', sim.cycle, treatment_end_gen);
+	}
+
+}
+
+function (void)end_simulation(void){
+	
+	sim.simulationFinished();
+	
+}
+
+
+
+1 early() {
+
+	sim.addSubpop("p1", 1);
+	community.registerEarlyEvent(NULL, "{check_population();}", sim.cycle + 1, sim.cycle + 1);
+	log_headers = c('parm_id', 'job_id', 'cycle', 'phase', 'freq_m' + c(1:length(sim.mutationTypes)), 'freq_all_muts', 
+    'base_mut_rate', 'second_treatment_lag', 'fitness_cost', 'cross_resistance', 'drug_1_combo_dose', 'drug_2_combo_dose', 'dose_drug_1_mono', 'dose_drug_2_mono', 'expansion_time', 'treatment_time', 'current_drug', 'N', 'death_count', 'Q', 'replicate', 'initial_seed', 'treatment_seed', 'sim_stage'); 
+	defineGlobal('current_phase', 'expansion');
+    defineGlobal('current_drug', 0);
+    defineConstant('treatment_seed', create_treatment_seed());
+	if (!fileExists(log_file)){
+		to_write = paste(log_headers, sep=',');
+		writeFile(log_file, to_write);
+	}
+	
+}
+
+early() {
+	write_to_log('early');
+	if (length(p1.individuals) > 1 | current_phase == 'treatment') {
+		p1.fitnessScaling = (1-turn_over_rate);
+	}
+}
+
+late() {
+	write_to_log('late');
+	if ((length(p1.individuals) > 2^(expansion_time)*1.5) | length(p1.individuals) == 0){
+		end_simulation();
+	}
+}
