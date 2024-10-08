@@ -35,7 +35,6 @@ initialize() {
 	defineConstant('treatment_time', 400);
     
 	defineConstant('mut_rate', base_mut_rate*Q);
-	defineGlobal('fitness_scaling', 0.80);
 	
 	defineGlobal('kill_counter', 0);	
 	defineGlobal('expansion_over', F);	
@@ -163,7 +162,6 @@ function (void)check_population(void){
 			community.registerEarlyEvent(NULL, '{setSeed(treatment_seed);}', sim.cycle + asInteger(second_strike_lag), sim.cycle + asInteger(second_strike_lag));
 			community.registerEarlyEvent(NULL, '{defineGlobal("dose_drug_2", dose_drug_2_mono);}', sim.cycle + asInteger(second_strike_lag));
 		}
-		p1.fitnessScaling = fitness_scaling;
 		community.registerLateEvent(NULL, '{end_simulation();}', treatment_end_gen, treatment_end_gen);
 		//community.registerLateEvent(NULL, '{write_to_log();}', sim.cycle, treatment_end_gen);
 	}
