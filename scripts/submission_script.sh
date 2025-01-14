@@ -1,4 +1,4 @@
-#!/bin/bash\n'
+#!/bin/bash
 #SBATCH --job-name=cancer_sims
 #SBATCH --error=logs/slurm-%A-%a.err
 #SBATCH --output=logs/slurm-%A-%a.out
