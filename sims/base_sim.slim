@@ -30,7 +30,7 @@ initialize() {
 	defineConstant('treatment_time', 300);
     
 	defineConstant('mut_rate', base_mut_rate*Q);
-	defineGlobal('fitness_scaling', 0.80);
+	defineGlobal('fitness_scaling', 1-turn_over_rate);
 	
 
 	defineGlobal('kill_counter', 0);	
